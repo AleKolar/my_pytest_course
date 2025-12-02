@@ -89,15 +89,15 @@ class CartRepository:
         Returns:
             Обновленный объект Cart или None, если не найден
         """
-        # Получаем элемент
+        # Получаем элемент из БД
         cart_item = await self.get_cart_item(item_id)
         if not cart_item:
             return None
 
-        # Подготавливаем данные для обновления
+        # Подготавливаем данные для обновления, ТОЛЬКО явно переданные поля (exclude_unset:  PATCH-семантика)
         update_data = cart_update.model_dump(exclude_unset=True)
 
-        ''' Выполняем обновление '''
+        ''' Выполняем обновление, ТОЛЬКО указанные поля в БД '''
         await self.session.execute(
             update(Cart)
             .where(Cart.id == item_id)
