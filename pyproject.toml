@@ -1,0 +1,15 @@
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-v --tb=short -rA"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "smoke: Дымовые тесты для критического функционала",
+    "regression: Полный набор регрессионных тестов",
+    "slow: Медленные тесты (например, с доступом к сети)",
+    "skip: Эта функциональность будет реализована в версии 2.0",
+    "skipif: Требуется Python 3.10 или выше",
+    "xfail: Известный баг с точностью float, будет исправлен в #TICKET-123",
+]
