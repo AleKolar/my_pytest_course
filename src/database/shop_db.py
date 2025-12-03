@@ -10,8 +10,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from typing import AsyncGenerator
 import logging
 
+from sqlalchemy.orm import DeclarativeBase
+
 from src.database.config import DATABASE_URL, DB_ECHO, DB_MAX_OVERFLOW, DB_POOL_SIZE
-from src.shop.cart.models import Model
+
+class Model(DeclarativeBase):
+   pass
+
 
 logger = logging.getLogger(__name__)
 

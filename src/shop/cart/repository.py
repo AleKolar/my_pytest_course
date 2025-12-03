@@ -3,8 +3,8 @@ from sqlalchemy import select, update, delete
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
 
-from src.shop.cart.models import Cart
-from src.shop.cart.schemas import CartCreate, CartUpdate
+from src.shop.cart.models.models_cart import Cart
+from src.shop.cart.schemas.schemas_cart import CartCreate, CartUpdate
 
 
 class CartRepository:
@@ -13,21 +13,15 @@ class CartRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create_cart_item(self, cart_data: CartCreate) -> Cart:
+    async def create_cart_item(self, cart_data: CartCreate, user_id: int) -> Cart:
         """
-        Создает новый элемент корзины.
-
-        Args:
-            cart_data: Данные для создания элемента корзины
-
-        Returns:
-            Созданный объект Cart
+        Создает новый элемент корзины для конкретного пользователя.
         """
-        ''' Создаем объект Cart из Pydantic схемы '''
         cart_item = Cart(
             item=cart_data.item,
             quantity=cart_data.quantity,
-            price=cart_data.price
+            price=cart_data.price,
+            user_id=user_id  # !!! Добавляем user_id конкретного пользователя с конкретной корзиной
         )
 
         self.session.add(cart_item)
@@ -36,38 +30,29 @@ class CartRepository:
 
         return cart_item
 
-    async def get_cart_item(self, item_id: int) -> Optional[Cart]:
+    async def get_cart_item(self, item_id: int, user_id: int) -> Optional[Cart]:
         """
-        Получает элемент корзины по ID.
-
-        Args:
-            item_id: ID элемента корзины
-
-        Returns:
-            Объект Cart или None, если не найден
+        Получает элемент корзины по ID для конкретного пользователя.
         """
         result = await self.session.execute(
-            select(Cart).where(Cart.id == item_id)
+            select(Cart)
+            .where(Cart.id == item_id)
+            .where(Cart.user_id == user_id)  # Фильтруем по пользователю
         )
         return result.scalar_one_or_none()
 
     async def get_all_cart_items(
             self,
+            user_id: int,  # Добавляем user_id
             skip: int = 0,
             limit: int = 100
     ) -> List[Cart]:
         """
-        Получает все элементы корзины с пагинацией.
-
-        Args:
-            skip: Количество элементов для пропуска
-            limit: Максимальное количество элементов
-
-        Returns:
-            Список объектов Cart
+        Получает все элементы корзины пользователя.
         """
         result = await self.session.execute(
             select(Cart)
+            .where(Cart.user_id == user_id)  # Фильтруем по пользователю
             .offset(skip)
             .limit(limit)
             .order_by(Cart.created_at.desc())
@@ -77,30 +62,23 @@ class CartRepository:
     async def update_cart_item(
             self,
             item_id: int,
-            cart_update: CartUpdate
+            cart_update: CartUpdate,
+            user_id: int  # Добавляем user_id
     ) -> Optional[Cart]:
         """
-        Обновляет элемент корзины.
-
-        Args:
-            item_id: ID элемента для обновления
-            cart_update: Данные для обновления
-
-        Returns:
-            Обновленный объект Cart или None, если не найден
+        Обновляет элемент корзины пользователя.
         """
-        # Получаем элемент из БД
-        cart_item = await self.get_cart_item(item_id)
+        # Получаем элемент из БД с проверкой user_id
+        cart_item = await self.get_cart_item(item_id, user_id)
         if not cart_item:
             return None
 
-        # Подготавливаем данные для обновления, ТОЛЬКО явно переданные поля (exclude_unset:  PATCH-семантика)
         update_data = cart_update.model_dump(exclude_unset=True)
 
-        ''' Выполняем обновление, ТОЛЬКО указанные поля в БД '''
         await self.session.execute(
             update(Cart)
             .where(Cart.id == item_id)
+            .where(Cart.user_id == user_id)  # Фильтруем по пользователю
             .values(**update_data)
         )
 
@@ -109,50 +87,38 @@ class CartRepository:
 
         return cart_item
 
-    async def delete_cart_item(self, item_id: int) -> bool:
+    async def delete_cart_item(self, item_id: int, user_id: int) -> bool:
         """
-        Удаляет элемент корзины.
-
-        Args:
-            item_id: ID элемента для удаления
-
-        Returns:
-            True, если элемент удален, False если не найден
+        Удаляет элемент корзины пользователя.
         """
-        # Проверяем существование элемента
-        cart_item = await self.get_cart_item(item_id)
+        cart_item = await self.get_cart_item(item_id, user_id)
         if not cart_item:
             return False
 
-        ''' Удаляем элемент '''
         await self.session.delete(cart_item)
         await self.session.flush()
 
         return True
 
-    async def clear_cart(self) -> int:
+    async def clear_cart(self, user_id: int) -> int:
         """
-        Очищает всю корзину.
-
-        Returns:
-            Количество удаленных элементов
+        Очищает корзину пользователя.
         """
         result = await self.session.execute(
             delete(Cart)
+            .where(Cart.user_id == user_id)  # Фильтруем по пользователю
         )
         await self.session.flush()
 
         return result.rowcount or 0
 
-    async def get_cart_total_price(self) -> Decimal:
+    async def get_cart_total_price(self, user_id: int) -> Decimal:
         """
-        Рассчитывает общую стоимость всех товаров в корзине.
-
-        Returns:
-            Общая стоимость
+        Рассчитывает общую стоимость корзины пользователя.
         """
         result = await self.session.execute(
             select(Cart)
+            .where(Cart.user_id == user_id)  # Фильтруем по пользователю
         )
         cart_items = result.scalars().all()
 
@@ -162,19 +128,17 @@ class CartRepository:
 
         return total
 
-    async def get_cart_summary(self) -> Dict[str, Any]:
+    async def get_cart_summary(self, user_id: int) -> Dict[str, Any]:
         """
-        Возвращает сводку по корзине.
-
-        Returns:
-            Словарь с информацией о корзине
+        Возвращает сводку по корзине пользователя.
         """
-        cart_items = await self.get_all_cart_items()
-        total_price = await self.get_cart_total_price()
+        cart_items = await self.get_all_cart_items(user_id)
+        total_price = await self.get_cart_total_price(user_id)
 
         return {
             "total_items": len(cart_items),
             "total_price": str(total_price),
+            "user_id": user_id,
             "items": [
                 {
                     "id": item.id,
@@ -186,4 +150,3 @@ class CartRepository:
                 for item in cart_items
             ]
         }
-

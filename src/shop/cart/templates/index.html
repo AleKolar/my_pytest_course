@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Главная - Магазин{% endblock %}
+
+{% block content %}
+    <h1>Добро пожаловать в магазин!</h1>
+    
+    {% if message %}
+    <div class="message {{ message.type }}">
+        {{ message.text }}
+    </div>
+    {% endif %}
+    
+    <div id="auth-status" class="message info">
+        Проверка авторизации...
+    </div>
+    
+    <div id="auth-actions" style="display: none;">
+        <div class="links">
+            <a href="/login" id="login-link">Войти</a> | 
+            <a href="/register" id="register-link">Зарегистрироваться</a>
+        </div>
+        
+        <div id="user-actions" style="display: none;">
+            <div class="form-group">
+                <p style="text-align: center; margin: 20px 0;">
+                    Вы авторизованы! Токен сохранен в браузере.
+                </p>
+            </div>
+            
+            <div class="links">
+                <a href="#" onclick="useSwagger()">Использовать Swagger UI</a><br><br>
+                <a href="/logout">Выйти</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Проверяем наличие токена в localStorage
+        function checkAuth() {{
+            const token = localStorage.getItem('auth_token');
+            const authStatus = document.getElementById('auth-status');
+            const authActions = document.getElementById('auth-actions');
+            const userActions = document.getElementById('user-actions');
+            const loginLink = document.getElementById('login-link');
+            const registerLink = document.getElementById('register-link');
+            
+            authActions.style.display = 'block';
+            
+            if (token) {{
+                // Токен есть - показываем действия для авторизованного пользователя
+                authStatus.innerHTML = '<div class="message success">✅ Вы авторизованы!</div>';
+                userActions.style.display = 'block';
+                
+                // Добавляем токен в ссылки на Swagger
+                document.querySelectorAll('a[href^="/docs"]').forEach(link => {{
+                    link.href = link.href + '?token=' + encodeURIComponent(token);
+                }});
+            }} else {{
+                // Токена нет - показываем кнопки входа/регистрации
+                authStatus.innerHTML = '<div class="message info">Для доступа к API необходимо войти в систему</div>';
+                userActions.style.display = 'none';
+            }}
+        }}
+        
+        function useSwagger() {{
+            const token = localStorage.getItem('auth_token');
+            if (token) {{
+                // Открываем Swagger с токеном
+                window.open('/docs?token=' + encodeURIComponent(token), '_blank');
+            }} else {{
+                alert('Сначала войдите в систему');
+            }}
+        }}
+        
+        // Проверяем при загрузке страницы
+        window.onload = checkAuth;
+    </script>
+{% endblock %}
