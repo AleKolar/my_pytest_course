@@ -1,17 +1,17 @@
 from contextlib import asynccontextmanager
 from typing import cast, Any, Annotated
 
-from fastapi import FastAPI, Form, Depends, status
+from fastapi import FastAPI, Request, Form, Depends, status
+from fastapi.responses import HTMLResponse, JSONResponse
 import uvicorn
 from fastapi.openapi.docs import get_swagger_ui_html
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.cors import CORSMiddleware
-from fastapi import Request
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.templating import Jinja2Templates
 
 from src.database.shop_db import create_tables, get_db
-from src.shop.cart import templates
+
 from src.shop.cart.endpoints.endpoints_auth import auth_router
 from src.shop.cart.endpoints.endpoints_cart import cart_router
 from src.shop.cart.models.models_auth import User
@@ -56,6 +56,7 @@ app.add_middleware(
 
 user_tokens = {}
 
+templates = Jinja2Templates(directory="src/templates")
 app.include_router(auth_router)
 app.include_router(cart_router)
 
@@ -198,7 +199,6 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST
         )
 
-    # Создаем пользователя
     hashed_password = get_password_hash(password)
     new_user = User(
         username=username,
@@ -209,12 +209,11 @@ async def register(
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
-
-    # Сразу логиним пользователя
+    # !!! И сразу логиним
     access_token = create_access_token(data={"sub": new_user.username})
     user_tokens[new_user.username] = access_token
 
-    # HTML с автоматическим сохранением токена
+    # !!! HTML с автоматическим сохранением токена
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -264,7 +263,6 @@ async def logout():
 @app.get("/status", response_class=JSONResponse)
 async def get_status(request: Request):
     """Проверка статуса авторизации."""
-    # Проверяем есть ли токен в заголовке
     auth_header = request.headers.get("Authorization")
     token = None
 
@@ -305,7 +303,7 @@ async def add_token_to_swagger(request: Request, call_next):
         token = request.query_params.get("token")
         response = await call_next(request)
 
-        # Устанавливаем токен в localStorage через JavaScript
+        # !!! Устанавливаем токен в localStorage через JavaScript
         html = response.body.decode()
         if token and 'localStorage.setItem' not in html:
             script = f"""
@@ -341,8 +339,7 @@ async def add_token_to_swagger(request: Request, call_next):
     return await call_next(request)
 
 
-
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="127.0.0.1", port=8001)
 
-# python uvicorn main^app --reload
+# only port == 8001
