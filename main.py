@@ -2,24 +2,17 @@ from contextlib import asynccontextmanager
 from typing import cast, Any
 from datetime import datetime
 
-from fastapi import FastAPI, Depends, status, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Depends
 import uvicorn
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 
 from src.database.shop_db import create_tables, get_db
 from src.shop.cart.endpoints.endpoints_auth import auth_router
 from src.shop.cart.endpoints.endpoints_cart import cart_router
 from src.shop.cart.models.models_auth import User
-from src.shop.cart.schemas.schemas_user import UserCreate, UserLogin, Token
-from src.shop.cart.dependencies import get_current_user, CurrentUser
-from src.shop.cart.utils import (
-    verify_password,
-    get_password_hash,
-    create_access_token
-)
 
 
 @asynccontextmanager
@@ -77,16 +70,15 @@ async def health_check():
     """Проверка состояния сервиса."""
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now().isoformat(),
         "service": "shop-api"
     }
 
 # ==================== АДМИНИСТРАТИВНЫЕ ЭНДПОИНТЫ ====================
 @app.get("/admin/users")
 async def get_all_users(
-        db: AsyncSession = Depends(get_db),
-        current_user: CurrentUser = Depends(get_current_user)
-):
+        db: AsyncSession = Depends(get_db)
+    ):
     """Получение списка всех пользователей (только для админов)."""
     # Проверка прав (добавьте логику проверки ролей)
     result = await db.execute(select(User))

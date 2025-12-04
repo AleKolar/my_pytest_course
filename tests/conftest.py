@@ -7,10 +7,10 @@ from httpx import AsyncClient, ASGITransport
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.shop.cart.endpoints.endpoints_auth import auth_router
-from sqlalchemy import StaticPool, select
+from sqlalchemy import StaticPool
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-from src.database.shop_db import Model, get_db
+from src.database.shop_db import Model
 from src.shop.cart.models.models_auth import User
 from src.shop.cart.utils import get_password_hash
 from src.shop.cart.models.models_cart import Cart
