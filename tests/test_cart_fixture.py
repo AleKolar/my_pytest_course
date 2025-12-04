@@ -1,6 +1,11 @@
+import sys
+from pathlib import Path
+
 import pytest
 import pytest_asyncio
 from decimal import Decimal
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.shop.cart.repository import CartRepository
 from src.shop.cart.schemas.schemas_cart import CartCreate

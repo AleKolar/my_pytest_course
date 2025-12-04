@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 
 from src.database.shop_db import get_db
-from src.shop.cart.dependencies.dependencies_auth.dependencies import get_current_user
+from src.shop.cart.dependencies.dependencies_auth.dependencies import get_current_user, CurrentUser
 from src.shop.cart.models.models_auth import User
 from src.shop.cart.schemas.schemas_auth import UserInDB, UserCreate, Token
 from src.shop.cart.utils import get_password_hash, verify_password, ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
@@ -112,6 +112,20 @@ async def login(
 
     return {"access_token": access_token, "token_type": "bearer"}
 
+
+@auth_router.post("/refresh")
+async def refresh_token(
+        current_user: CurrentUser
+):
+    """Обновление токена."""
+    access_token = create_access_token(
+        data={"sub": current_user.username}
+    )
+
+    return Token(
+        access_token=access_token,
+        token_type="bearer"
+    )
 
 @auth_router.get(
     "/me",
