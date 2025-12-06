@@ -11,7 +11,6 @@ from src.shop.cart.repository import CartRepository
 from src.shop.cart.schemas.schemas_cart import CartCreate
 
 
-
 class ShoppingCart:
     def __init__(self, session, user_id: int):
         self.repo = CartRepository(session)

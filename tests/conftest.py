@@ -3,20 +3,18 @@ from pathlib import Path
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.shop.cart.endpoints.endpoints_auth import auth_router
 from sqlalchemy import StaticPool
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-from src.database.shop_db import Model
+from src.database.shop_db import Model, get_db
 from src.shop.cart.models.models_auth import User
 from src.shop.cart.utils import get_password_hash
-from src.shop.cart.models.models_cart import Cart
 
-# Тестовая БД (SQLite в памяти)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
 
 @pytest_asyncio.fixture
 async def engine():
@@ -24,7 +22,8 @@ async def engine():
     engine = create_async_engine(
         TEST_DATABASE_URL,
         echo=False,
-        poolclass=StaticPool
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False}
     )
 
     # Создаем все таблицы
@@ -32,6 +31,10 @@ async def engine():
         await conn.run_sync(Model.metadata.create_all)
 
     yield engine
+
+    # Очищаем и закрываем движок
+    async with engine.begin() as conn:
+        await conn.run_sync(Model.metadata.drop_all)
     await engine.dispose()
 
 
@@ -45,7 +48,14 @@ async def db_session(engine):
     )
 
     async with async_session() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
 
 @pytest_asyncio.fixture
@@ -54,7 +64,8 @@ async def test_user(db_session):
     test_user = User(
         username="testuser",
         email="test@example.com",
-        hashed_password=get_password_hash("testpassword")
+        hashed_password=get_password_hash("testpassword"),
+        is_active=True
     )
     db_session.add(test_user)
     await db_session.commit()
@@ -66,25 +77,15 @@ async def test_user_id(test_user):
     """Возвращает ID тестового пользователя."""
     return test_user.id
 
-
 @pytest_asyncio.fixture
 def app(engine):
     """Создает тестовое приложение FastAPI."""
     from fastapi import FastAPI
-    from src.database.shop_db import get_db
 
     app = FastAPI()
 
     # Включаем роутер
     app.include_router(auth_router)
-
-    # Создаем таблицы
-    async def create_tables():
-        async with engine.begin() as conn:
-            await conn.run_sync(Model.metadata.create_all)
-
-    import asyncio
-    asyncio.run(create_tables())
 
     # Переопределяем зависимость get_db
     async def override_get_db():
@@ -94,16 +95,50 @@ def app(engine):
             expire_on_commit=False
         )
         async with async_session() as session:
-            yield session
+            try:
+                yield session
+            finally:
+                await session.close()
 
     app.dependency_overrides[get_db] = override_get_db
 
     return app
 
 
-
 @pytest_asyncio.fixture
 async def async_client(app):
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    """Создает асинхронный тестовый клиент."""
+    async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test"
+    ) as client:
         yield client
+
+
+@pytest_asyncio.fixture
+async def authenticated_client(async_client, test_user):
+    """Создает аутентифицированный тестовый клиент."""
+    # Логинимся для получения токена
+    login_response = await async_client.post(
+        "/auth/login",
+        data={"username": "testuser", "password": "testpassword"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+
+    token = login_response.json()["access_token"]
+
+    # Возвращаем клиент с заголовком авторизации
+    async_client.headers.update({"Authorization": f"Bearer {token}"})
+    return async_client
+
+
+# Фикстура для очистки БД между тестами
+@pytest_asyncio.fixture(autouse=True)
+async def clean_db(engine, db_session):
+    """Автоматически очищает базу данных перед каждым тестом."""
+    # Очищаем все таблицы
+    for table in reversed(Model.metadata.sorted_tables):
+        await db_session.execute(table.delete())
+    await db_session.commit()
+    yield
 
