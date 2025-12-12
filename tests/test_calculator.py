@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from src.calculator import add, divide
 
 @pytest.mark.smoke
-def test_calculator():
+def test_add():
     assert add(2, 3) == 5
 
 @pytest.mark.regression
