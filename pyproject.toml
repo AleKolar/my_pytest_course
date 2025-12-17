@@ -1,6 +1,6 @@
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-v --tb=short -rA --strict-markers --cov=src --cov-report=term-missing"
+addopts = "-v --tb=short -rA -n auto --dist=loadfile --strict-markers --cov=src --cov-report=term-missing"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]

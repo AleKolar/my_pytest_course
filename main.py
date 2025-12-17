@@ -2,14 +2,16 @@ from contextlib import asynccontextmanager
 from typing import cast, Any
 from datetime import datetime
 
+import asyncpg
 from fastapi import FastAPI, Depends
 import uvicorn
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 
-from src.database.shop_db import create_tables, get_db
+from src.database.config import DATABASE_URL
+from src.database.shop_db import create_tables, get_db, engine
 from src.shop.cart.endpoints.endpoints_auth import auth_router
 from src.shop.cart.endpoints.endpoints_cart import cart_router
 from src.shop.cart.models.models_auth import User
@@ -17,19 +19,40 @@ from src.shop.cart.models.models_auth import User
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Жизненный цикл приложения"""
-    print("🚀 Запуск приложения...")
-
-    # Создаем таблицы
+    # Startup
+    print("🚀 Запуск приложение...")
+    # Инициализируем engine SQLAlchemy
+    app.state.db_engine = engine
+    # Проверяем подключение к БД (опционально)
     try:
-        await create_tables()
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+            await conn.commit()
+        print("✅ Подключение к БД успешно")
     except Exception as e:
-        print(f"⚠️ Ошибка создания таблиц: {e}")
+        print(f"❌ Ошибка подключения к БД: {e}")
         raise
 
-    yield
-
+    yield  # Работа приложения
+    # Shutdown
     print("👋 Остановка приложения...")
+    await engine.dispose()
+
+
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     """Жизненный цикл приложения"""
+#     print("🚀 Запуск приложения...")
+#     # Создаем таблицы
+#     try:
+#         await create_tables()
+#     except Exception as e:
+#         print(f"⚠️ Ошибка создания таблиц: {e}")
+#         raise
+#
+#     yield
+#
+#     print("👋 Остановка приложения...")
 
 
 app = FastAPI(
@@ -106,4 +129,5 @@ async def get_openapi():
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8001)
 
+# uvicorn main:app --reload
 # only port == 8001
